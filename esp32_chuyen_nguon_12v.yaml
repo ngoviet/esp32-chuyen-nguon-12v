@@ -28,21 +28,21 @@ esp32:
 wifi:
   networks:
     # === Aruba T1 (Channel 1) ===
-    # - ssid: "Ga"
-    #   password: "passWord#8586"
-    #   bssid: a8:bd:27:f2:62:a2
-    #   channel: 1
+    - ssid: !secret wifi_ssid_t1
+      password: !secret wifi_password_t1
+      bssid: !secret wifi_bssid_t1
+      channel: 1
 
     # === Aruba T2 (Channel 6) ===
-    # - ssid: "Ga"
-    #   password: "passWord#8586"
-    #   bssid: a8:bd:27:de:21:a2
-    #   channel: 6
+    - ssid: !secret wifi_ssid_t2
+      password: !secret wifi_password_t2
+      bssid: !secret wifi_bssid_t2
+      channel: 6
 
     # === Aruba T3 (Channel 11) ===
-    - ssid: "Ga"
-      password: "passWord#8586"
-      bssid: a8:bd:27:45:b0:02
+    - ssid: !secret wifi_ssid_t3
+      password: !secret wifi_password_t3
+      bssid: !secret wifi_bssid_t3
       channel: 11
   ap:
     ssid: ${dev_name}

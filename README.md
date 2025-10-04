@@ -50,12 +50,20 @@ esp32_chuyen_nguon_12v/
 pip install esphome
 
 # Clone repository này
-git clone https://github.com/YOUR_USERNAME/esp32-chuyen-nguon-12v.git
+git clone https://github.com/ngoviet/esp32-chuyen-nguon-12v.git
 cd esp32-chuyen-nguon-12v
 ```
 
-### 2. Cấu hình
-- Sửa WiFi credentials trong `base_setup.yaml`
+### 2. Cấu hình bảo mật
+```bash
+# Tạo file secrets từ template
+cp secrets.yaml.example secrets.yaml
+
+# Sửa thông tin WiFi và mật khẩu trong secrets.yaml
+# QUAN TRỌNG: File secrets.yaml sẽ KHÔNG được commit lên GitHub
+```
+
+### 3. Cấu hình khác
 - Thay đổi entity SOC nếu cần trong phần `substitutions`
 - Kiểm tra GPIO pin phù hợp với phần cứng
 

@@ -16,7 +16,7 @@ time:
 
 ota:
   platform: esphome
-  password: "password"
+  password: !secret ota_password
 
 logger:
   baud_rate: 115200
