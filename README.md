@@ -1,26 +1,26 @@
-# ESP32 Auto Power Switch System
+# 🔋 ESP32 Auto Power Switch System
 
 Hệ thống chuyển đổi nguồn tự động giữa Pin và Adaptor 12V dựa trên SOC (State of Charge) của pin từ Home Assistant.
 
-## 🔋 Tính năng
+## ✨ Tính năng chính
 
-- **Chuyển nguồn tự động**: Dựa trên SOC từ Home Assistant entity `sensor.jk_remaining_capacity`
-- **Cấu hình linh hoạt**: Điều chỉnh ngưỡng SOC trực tiếp từ HA interface
-- **3 chế độ hoạt động**: 
-  - `Auto`: Tự động dựa trên SOC
+- 🔄 **Chuyển nguồn tự động**: Dựa trên SOC từ Home Assistant
+- ⚙️ **Cấu hình linh hoạt**: Điều chỉnh ngưỡng từ HA interface
+- 🎛️ **3 chế độ hoạt động**:
+  - `Auto`: Tự động theo SOC pin
   - `Force Pin`: Bắt buộc dùng Pin
-  - `Force Adaptor`: Bắt buộc dùng Adaptor
-- **Monitoring realtime**: Hiển thị trạng thái nguồn và SOC
-- **Hysteresis logic**: Tránh dao động nguồn trong vùng trung gian
+  - `Force Adaptor`: Bắt buộc dùng Adaptor  
+- 📊 **Monitoring realtime**: Hiển thị trạng thái và SOC
+- 🛡️ **Hysteresis logic**: Tránh dao động nguồn
 
 ## ⚙️ Cấu hình mặc định
 
-| Thông số | Giá trị mặc định | Có thể thay đổi |
-|----------|------------------|-----------------|
-| Chuyển sang Adaptor | SOC < 50% | ✅ Từ HA (20-60%) |
-| Chuyển về Pin | SOC > 70% | ✅ Từ HA (60-90%) |
-| GPIO Relay | Pin 16 | ✅ Trong code |
-| SOC Entity | `sensor.jk_remaining_capacity` | ✅ Trong code |
+| Thông số | Giá trị mặc định | Điều chỉnh |
+|----------|------------------|------------|
+| 🔌 Chuyển sang Adaptor | SOC < 50% | ✅ Từ HA (20-60%) |
+| 🔋 Chuyển về Pin | SOC > 70% | ✅ Từ HA (60-90%) |
+| 📡 GPIO Relay | Pin 16 | ✅ Trong code |
+| 📊 SOC Entity | `sensor.jk_remaining_capacity` | ✅ Trong code |
 
 ## 📡 Yêu cầu phần cứng
 
@@ -42,38 +42,51 @@ esp32_chuyen_nguon_12v/
 └── esare.bat                     # Script erase flash
 ```
 
-## 🚀 Cài đặt
+## 🚀 Hướng dẫn cài đặt
 
-### 1. Chuẩn bị môi trường
+### 1️⃣ Chuẩn bị môi trường
 ```bash
 # Cài đặt ESPHome
 pip install esphome
 
-# Clone repository này
+# Clone repository
 git clone https://github.com/ngoviet/esp32-chuyen-nguon-12v.git
 cd esp32-chuyen-nguon-12v
 ```
 
-### 2. Cấu hình bảo mật
+### 2️⃣ Cấu hình WiFi và bảo mật
 ```bash
 # Tạo file secrets từ template
 cp secrets.yaml.example secrets.yaml
-
-# Sửa thông tin WiFi và mật khẩu trong secrets.yaml
-# QUAN TRỌNG: File secrets.yaml sẽ KHÔNG được commit lên GitHub
 ```
 
-### 3. Cấu hình khác
-- Thay đổi entity SOC nếu cần trong phần `substitutions`
-- Kiểm tra GPIO pin phù hợp với phần cứng
+Sửa file `secrets.yaml`:
+```yaml
+# WiFi của bạn
+wifi_ssid: "TEN_WIFI_CUA_BAN"
+wifi_password: "MAT_KHAU_WIFI"
 
-### 3. Flash code
+# Mật khẩu OTA
+ota_password: "mat_khau_ota_tuy_chon"
+```
+
+> ⚠️ **Quan trọng**: File `secrets.yaml` chỉ tồn tại local, KHÔNG bao giờ được push lên GitHub!
+
+### 3️⃣ Tùy chỉnh cấu hình
+- **SOC Entity**: Sửa `battery_soc_entity` trong `substitutions` nếu khác `sensor.jk_remaining_capacity`
+- **GPIO Pin**: Sửa `relay_pin` nếu khác GPIO16
+- **Ngưỡng SOC**: Sửa `soc_switch_to_adapter_default` và `soc_switch_to_battery_default`
+
+### 4️⃣ Flash firmware lên ESP32
 ```bash
-# Sử dụng ESPHome CLI
+# Cách 1: ESPHome CLI
 esphome run esp32_chuyen_nguon_12v.yaml
 
-# Hoặc dùng script có sẵn
+# Cách 2: Script Windows
 flash.bat
+
+# Cách 3: ESPHome Dashboard
+esphome dashboard esp32_chuyen_nguon_12v.yaml
 ```
 
 ## 🔄 Logic hoạt động
@@ -89,36 +102,41 @@ SOC > 70% → Chuyển về Pin (ưu tiên pin)
 - **Force Pin**: Luôn dùng pin (bỏ qua SOC)
 - **Force Adaptor**: Luôn dùng adaptor (bỏ qua SOC)
 
-## 📊 Home Assistant Integration
+## 🏠 Home Assistant Integration
 
-Sau khi flash thành công, các entity sau sẽ xuất hiện trong HA:
+Sau khi flash thành công, ESP32 sẽ tự động xuất hiện trong HA với các entity:
 
-### Điều khiển
-- `select.che_do_chuyen_nguon`: Chọn chế độ hoạt động
-- `number.nguong_chuyen_sang_adaptor`: Ngưỡng chuyển sang adaptor (20-60%)
-- `number.nguong_chuyen_ve_pin`: Ngưỡng chuyển về pin (60-90%)
+### 🎛️ Điều khiển
+- **`select.che_do_chuyen_nguon`**: Chọn Auto/Force Pin/Force Adaptor
+- **`number.nguong_chuyen_sang_adaptor`**: Ngưỡng chuyển Adaptor (20-60%)  
+- **`number.nguong_chuyen_ve_pin`**: Ngưỡng chuyển Pin (60-90%)
 
-### Monitoring
-- `sensor.battery_soc_tu_ha`: SOC từ HA
-- `binary_sensor.dang_dung_adaptor`: Trạng thái đang dùng adaptor
-- `sensor.trang_thai_soc`: Mô tả trạng thái hiện tại
+### 📊 Monitoring  
+- **`sensor.battery_soc_tu_ha`**: SOC đồng bộ từ HA
+- **`binary_sensor.dang_dung_adaptor`**: Trạng thái nguồn hiện tại
+- **`sensor.trang_thai_soc`**: Mô tả chi tiết trạng thái SOC
 
-## 🛠️ Troubleshooting
+## � Troubleshooting
 
-### Không nhận SOC từ HA
-1. Kiểm tra entity `sensor.jk_remaining_capacity` có tồn tại trong HA
-2. Đảm bảo ESP32 đã kết nối API với HA
-3. Xem log: `log.bat`
+### 🚫 Không nhận SOC từ HA
+1. ✅ Kiểm tra entity `sensor.jk_remaining_capacity` tồn tại
+2. ✅ ESP32 đã kết nối API với HA  
+3. ✅ Xem log: `esphome logs esp32_chuyen_nguon_12v.yaml`
 
-### Relay không hoạt động
-1. Kiểm tra kết nối GPIO16
-2. Kiểm tra nguồn cấp cho relay module
-3. Test bằng chế độ Force Manual
+### ⚡ Relay không hoạt động
+1. ✅ Kiểm tra kết nối GPIO16 → Relay IN
+2. ✅ Kiểm tra nguồn 3.3V cho relay module
+3. ✅ Test bằng chế độ "Force Manual"
 
-### WiFi không kết nối
-1. Kiểm tra SSID/password trong `base_setup.yaml`
-2. Kiểm tra tín hiệu WiFi
-3. Xem log kết nối
+### 📡 WiFi không kết nối  
+1. ✅ Kiểm tra `secrets.yaml` - SSID/password đúng chưa
+2. ✅ Đảm bảo ESP32 trong vùng phủ sóng WiFi
+3. ✅ Xem log: `esphome logs esp32_chuyen_nguon_12v.yaml`
+
+### 🔄 SOC không cập nhật
+1. ✅ Entity `sensor.jk_remaining_capacity` có dữ liệu trong HA
+2. ✅ ESP32 đã được add vào HA qua ESPHome integration  
+3. ✅ Kiểm tra Home Assistant API token
 
 ## 📝 License
 

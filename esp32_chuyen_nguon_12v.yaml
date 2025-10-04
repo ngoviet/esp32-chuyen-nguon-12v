@@ -27,23 +27,8 @@ esp32:
 # ──────────────────────────── Wi-Fi ổn định ────────────────────────────
 wifi:
   networks:
-    # === Aruba T1 (Channel 1) ===
-    - ssid: !secret wifi_ssid_t1
-      password: !secret wifi_password_t1
-      bssid: !secret wifi_bssid_t1
-      channel: 1
-
-    # === Aruba T2 (Channel 6) ===
-    - ssid: !secret wifi_ssid_t2
-      password: !secret wifi_password_t2
-      bssid: !secret wifi_bssid_t2
-      channel: 6
-
-    # === Aruba T3 (Channel 11) ===
-    - ssid: !secret wifi_ssid_t3
-      password: !secret wifi_password_t3
-      bssid: !secret wifi_bssid_t3
-      channel: 11
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
   ap:
     ssid: ${dev_name}
 
