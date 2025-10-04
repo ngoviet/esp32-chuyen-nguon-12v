@@ -1,0 +1,163 @@
+
+esp32:
+  # board: ${board}
+  framework:
+    type: esp-idf
+
+# ───────────────────────── Dịch vụ cốt lõi ─────────────────────────
+api:
+  reboot_timeout: 0s
+
+web_server:
+  port: 80
+
+time:
+  - platform: sntp
+
+ota:
+  platform: esphome
+  password: "password"
+
+logger:
+  baud_rate: 115200
+  # level: Info
+  level: Debug
+wifi:
+  # networks:
+  #   - ssid: "Ga"
+  #     password: "passWord#8586"
+    # === Aruba T1 (Channel 1) ===
+    #   bssid: a8:bd:27:f2:62:a2
+    #   channel: 1
+
+    # === Aruba T2 (Channel 6) ===
+    #   bssid: a8:bd:27:de:21:a2
+    #   channel: 6
+
+    # === Aruba T3 (Channel 11) ===
+      # bssid: a8:bd:27:45:b0:02
+      # channel: 11
+  # ap:
+  #   ssid: ${dev_name}
+  fast_connect: true
+  power_save_mode: none
+  reboot_timeout: 10min
+
+captive_portal:
+
+
+# ─────────── RSSI + Wi-Fi Quality (%) + Wi-Fi Bars (x/5) ───────────
+sensor:
+
+  - platform: uptime
+    name: "Uptime Seconds"
+    id: uptime_sec  
+    update_interval: 10s
+
+  - platform: template
+    name: "Heap Free"
+    id: heap_free_kb
+    unit_of_measurement: "kB"
+    accuracy_decimals: 0
+    update_interval: 30s
+    entity_category: diagnostic
+    lambda: |-
+      #ifdef ESP_IDF_VERSION
+        size_t free_bytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+      #else
+        size_t free_bytes = ESP.getFreeHeap();
+      #endif
+      return (float) free_bytes / 1024.0f;
+
+  - platform: template
+    name: "PSRAM Free"
+    id: psram_free_kb
+    unit_of_measurement: "kB"
+    accuracy_decimals: 0
+    update_interval: 30s
+    entity_category: diagnostic
+    lambda: |-
+      #if CONFIG_SPIRAM
+        size_t free_bytes = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        return (float) free_bytes / 1024.0f;
+      #else
+        return NAN;  // không có PSRAM thì trả NAN (ẩn biểu đồ)
+      #endif
+  # 1) RSSI gốc (dBm) + làm mượt
+  - platform: wifi_signal
+    id: rssi_dbm
+    name: "WiFi RSSI"
+    update_interval: 30s
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
+
+  # 2) Quy đổi dBm -> % chất lượng (0–100)
+  - platform: template
+    id: wifi_quality_pct
+    name: "WiFi Quality"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    update_interval: 30s
+    entity_category: diagnostic
+    lambda: |-
+      float rssi = id(rssi_dbm).state;
+      if (isnan(rssi)) return NAN;
+      if (rssi <= -100) return 0;
+      if (rssi >= -50)  return 100;
+      return (rssi + 100.0f) * 2.0f;
+
+text_sensor:
+  - platform: template
+    name: "Uptime"
+    icon: mdi:clock-outline
+    entity_category: diagnostic
+    lambda: |-
+      uint32_t t = (uint32_t) id(uptime_sec).state;
+      uint32_t d = t / 86400;
+      uint32_t h = (t % 86400) / 3600;
+      uint32_t m = (t % 3600) / 60;
+      uint32_t s = t % 60;
+      char buf[40];
+      if (d)       snprintf(buf, sizeof(buf), "%ud %uh %um %us", d, h, m, s);
+      else if (h)  snprintf(buf, sizeof(buf), "%uh %um %us", h, m, s);
+      else if (m)  snprintf(buf, sizeof(buf), "%um %us", m, s);
+      else         snprintf(buf, sizeof(buf), "%us", s);
+      return std::string(buf);
+    update_interval: 10s
+  - platform: wifi_info
+    ip_address:
+      name: "WiFi IP"
+    ssid:
+      name: "WiFi SSID"
+    bssid:
+      name: "WiFi BSSID"
+    mac_address:
+      name: "WiFi MAC"
+  # 3) Quy đổi dBm -> số vạch "x/5"
+  - platform: template
+    id: wifi_bars
+    name: "WiFi Bars"
+    update_interval: 30s
+    entity_category: diagnostic
+    lambda: |-
+      float rssi = id(rssi_dbm).state;
+      if (isnan(rssi)) return {"N/A"};
+      int bars = 0;
+      if (rssi >= -55) bars = 5;
+      else if (rssi >= -65) bars = 4;
+      else if (rssi >= -72) bars = 3;
+      else if (rssi >= -80) bars = 2;
+      else if (rssi >= -90) bars = 1;
+      else bars = 0;
+      char buffer[5];
+      sprintf(buffer, "%d/5", bars);
+      return {buffer};
+
+# ── Nút restart thủ công ─────────────────────────────────────────────
+button:
+  - platform: restart
+    id: restart_button
+    name: "Restart thiết bị"
+

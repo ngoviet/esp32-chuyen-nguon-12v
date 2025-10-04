@@ -1,0 +1,238 @@
+substitutions:
+  dev_name: "chuyen_nguon_12v"
+  
+  # === Entity IDs từ Home Assistant ===
+  battery_soc_entity: "sensor.jk_remaining_capacity"
+  
+  # === GPIO Pins ===
+  relay_pin: "GPIO16"
+  
+  # === Ngưỡng SOC mặc định ===
+  soc_switch_to_adapter_default: "50"  # Ngưỡng chuyển sang Adaptor
+  soc_switch_to_battery_default: "70"  # Ngưỡng chuyển về Pin
+  
+  # === Khoảng thời gian cập nhật ===
+  auto_check_interval: "1s"
+  wifi_check_interval: "2min"
+  soc_status_update: "5s"
+
+esphome:
+  name: ${dev_name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# ──────────────────────────── Wi-Fi ổn định ────────────────────────────
+wifi:
+  networks:
+    # === Aruba T1 (Channel 1) ===
+    # - ssid: "Ga"
+    #   password: "passWord#8586"
+    #   bssid: a8:bd:27:f2:62:a2
+    #   channel: 1
+
+    # === Aruba T2 (Channel 6) ===
+    # - ssid: "Ga"
+    #   password: "passWord#8586"
+    #   bssid: a8:bd:27:de:21:a2
+    #   channel: 6
+
+    # === Aruba T3 (Channel 11) ===
+    - ssid: "Ga"
+      password: "passWord#8586"
+      bssid: a8:bd:27:45:b0:02
+      channel: 11
+  ap:
+    ssid: ${dev_name}
+
+packages:
+  base: !include base_setup.yaml
+
+# ─────────────────────────── Hardware Control ──────────────────────────
+switch:
+  - platform: gpio
+    id: sw_relay_to_adapter
+    name: "Chuyen sang Adaptor (coil)"
+    pin:
+      number: ${relay_pin}
+      mode: OUTPUT
+      inverted: false
+    restore_mode: ALWAYS_OFF
+
+select:
+  - platform: template
+    id: mode_select
+    name: "Che do chuyen nguon"
+    options:
+      - "Auto"
+      - "Force Pin"
+      - "Force Adaptor"
+    initial_option: "Auto"
+    restore_value: true
+    optimistic: true
+
+binary_sensor:
+  - platform: template
+    id: is_on_adapter
+    name: "Dang dung Adaptor?"
+    lambda: |-
+      return id(sw_relay_to_adapter).state;
+
+# ─────────────────────────── SOC Monitoring ──────────────────────────
+sensor:
+  # Sensor nhận SOC từ HA
+  - platform: homeassistant
+    id: battery_soc_from_ha
+    entity_id: ${battery_soc_entity}
+    name: "Battery SOC từ HA"
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    icon: mdi:battery-outline
+    # Cập nhật ngay khi có thay đổi từ HA
+    on_value:
+      - logger.log: 
+          format: "SOC updated from HA: %.1f%%"
+          args: [ 'x' ]
+
+  # Sensor cục bộ để lưu trữ SOC
+  - platform: template
+    id: battery_soc_local
+    name: "Battery SOC (Local)"
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    icon: mdi:battery
+    lambda: |-
+      if (!isnan(id(battery_soc_from_ha).state)) {
+        return id(battery_soc_from_ha).state;
+      }
+      return {};
+
+# ─────────────────────────── Configuration Numbers ──────────────────────────
+number:
+  - platform: template
+    id: soc_switch_to_adapter
+    name: "Ngưỡng chuyển sang Adaptor"
+    optimistic: true
+    min_value: 20
+    max_value: 60
+    initial_value: ${soc_switch_to_adapter_default}
+    step: 1
+    unit_of_measurement: "%"
+    icon: mdi:power-plug
+    entity_category: config
+    
+  - platform: template
+    id: soc_switch_to_battery
+    name: "Ngưỡng chuyển về Pin"
+    optimistic: true
+    min_value: 60
+    max_value: 90
+    initial_value: ${soc_switch_to_battery_default}
+    step: 1
+    unit_of_measurement: "%"
+    icon: mdi:battery-charging
+    entity_category: config
+
+# ─────────────────────────── Status Display ──────────────────────────
+text_sensor:
+  - platform: template
+    name: "Trạng thái SOC"
+    update_interval: ${soc_status_update}
+    lambda: |-
+      if (isnan(id(battery_soc_from_ha).state)) {
+        return {"Chưa kết nối HA"};
+      }
+      
+      float soc = id(battery_soc_from_ha).state;
+      float adapter_thresh = id(soc_switch_to_adapter).state;
+      float battery_thresh = id(soc_switch_to_battery).state;
+      
+      char status[80];
+      if (soc < adapter_thresh) {
+        snprintf(status, sizeof(status), "Thấp - Dùng Adaptor (%.1f%% < %.0f%%)", soc, adapter_thresh);
+      } else if (soc > battery_thresh) {
+        snprintf(status, sizeof(status), "Cao - Dùng Pin (%.1f%% > %.0f%%)", soc, battery_thresh);
+      } else {
+        snprintf(status, sizeof(status), "Trung bình (%.1f%% | %.0f%%-%.0f%%)", soc, adapter_thresh, battery_thresh);
+      }
+      
+      return {status};
+
+# ─────────────────────────── Control Scripts ──────────────────────────
+script:
+  - id: set_adapter
+    then:
+      - switch.turn_on: sw_relay_to_adapter
+      - delay: 200ms
+      
+  - id: set_battery
+    then:
+      - switch.turn_off: sw_relay_to_adapter
+      - delay: 200ms
+
+# ─────────────────────────── Auto Control Logic ──────────────────────────
+interval:
+  # Logic chuyển nguồn chính
+  - interval: ${auto_check_interval}
+    then:
+      # Force Pin
+      - if:
+          condition:
+            lambda: 'return id(mode_select).state == "Force Pin";'
+          then:
+            - switch.turn_off: sw_relay_to_adapter
+      
+      # Force Adaptor
+      - if:
+          condition:
+            lambda: 'return id(mode_select).state == "Force Adaptor";'
+          then:
+            - switch.turn_on: sw_relay_to_adapter
+      
+      # Auto (Pin luôn ưu tiên - chỉ chuyển Adaptor khi cần thiết)
+      - if:
+          condition:
+            lambda: 'return id(mode_select).state == "Auto";'
+          then:
+            # Chuyển sang Adaptor khi SOC < 50%
+            - if:
+                condition:
+                  and:
+                    - lambda: 'return !isnan(id(battery_soc_from_ha).state);'
+                    - lambda: 'return id(battery_soc_from_ha).state < id(soc_switch_to_adapter).state;'
+                    - switch.is_off: sw_relay_to_adapter
+                then:
+                  - logger.log: 
+                      format: "SOC thấp (%.1f%% < %.0f%%) -> Chuyển sang Adaptor"
+                      args: [ 'id(battery_soc_from_ha).state', 'id(soc_switch_to_adapter).state' ]
+                  - switch.turn_on: sw_relay_to_adapter
+            
+            # Chuyển về Pin khi SOC > 70% (Pin luôn ưu tiên)
+            - if:
+                condition:
+                  and:
+                    - lambda: 'return !isnan(id(battery_soc_from_ha).state);'
+                    - lambda: 'return id(battery_soc_from_ha).state > id(soc_switch_to_battery).state;'
+                    - switch.is_on: sw_relay_to_adapter
+                then:
+                  - logger.log: 
+                      format: "SOC cao (%.1f%% > %.0f%%) -> Chuyển về Pin (ưu tiên)"
+                      args: [ 'id(battery_soc_from_ha).state', 'id(soc_switch_to_battery).state' ]
+                  - switch.turn_off: sw_relay_to_adapter
+
+  # Tự phục hồi nếu Wi-Fi rớt kéo dài
+  - interval: ${wifi_check_interval}
+    then:
+      - if:
+          condition: 
+            wifi.connected:
+          then: 
+            - logger.log: "WiFi OK"
+          else:
+            - logger.log: "WiFi down >2min → restarting device…"
+            - button.press: restart_button
+
+
+
